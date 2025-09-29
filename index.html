@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>證件照生成器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="index.css">
+    <!-- Add ES Module Shims for cross-browser importmap support -->
+    <script async src="https://unpkg.com/es-module-shims@1.10.0/dist/es-module-shims.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.21.0"
+  }
+}
+</script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white p-8 rounded-2xl shadow-xl max-w-5xl w-full flex flex-col md:flex-row gap-8">
+        <!-- 輸入區塊 -->
+        <div class="flex-1 space-y-6 md:max-w-sm">
+            <h1 class="text-3xl font-bold text-gray-900 text-center">證件照生成器</h1>
+            <p class="text-gray-600 text-center">將您的生活照或動漫圖片轉換為專業、高品質的證件用大頭照。</p>
+
+            <!-- 影像上傳與預覽 -->
+            <div class="flex flex-col items-center space-y-4">
+                <div id="dropZone" class="w-full h-64 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center relative overflow-hidden bg-gray-50 transition-colors cursor-pointer hover:border-blue-500 hover:bg-blue-50">
+                    <img id="previewImage" class="absolute inset-0 w-full h-full object-contain" src="" alt="上傳照片預覽" style="display: none;">
+                    <div id="uploadPlaceholder" class="text-gray-400 text-center p-4 pointer-events-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <p class="text-sm font-medium">點擊此處或拖曳照片上傳</p>
+                        <p class="text-xs text-gray-500 mt-1">支援真人與動漫圖片</p>
+                    </div>
+                </div>
+                <input type="file" id="imageInput" accept="image/*" class="hidden">
+            </div>
+            
+             <!-- 卡通模式選項 -->
+            <div class="space-y-3 bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+                <div class="flex items-center">
+                    <input type="checkbox" id="isCartoonCheckbox" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                    <label for="isCartoonCheckbox" class="ml-3 block text-sm font-medium text-gray-800">使用卡通/動漫圖片轉為真人</label>
+                </div>
+                <div id="cartoonDescriptionContainer" class="hidden">
+                    <label for="cartoonDescriptionInput" class="block text-sm font-medium text-gray-700">角色描述 (選填)</label>
+                    <input type="text" id="cartoonDescriptionInput" class="mt-1 block w-full px-4 py-2 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" placeholder="例如：藍色頭髮、戴紅眼鏡的男孩">
+                </div>
+            </div>
+
+            <!-- 選項 -->
+            <div class="space-y-4">
+                <div>
+                    <label for="expressionSelect" class="block text-sm font-medium text-gray-700">表情調整</label>
+                    <select id="expressionSelect" class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 text-gray-900 rounded-xl focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                        <option value="preserve" selected>原始表情</option>
+                        <option value="a neutral expression">無表情</option>
+                        <option value="a gentle, happy smile with mouth closed">微笑 (閉嘴)</option>
+                        <option value="a gentle, happy smile showing teeth">微笑 (露齒)</option>
+                        <option value="a surprised expression">驚訝</option>
+                        <option value="a sad expression">難過</option>
+                        <option value="an angry expression">生氣</option>
+                        <option value="making a playful silly face, like winking or sticking their tongue out playfully">鬼臉</option>
+                    </select>
+                </div>
+                 <div class="flex items-center pt-2">
+                    <input type="checkbox" id="removeGlassesCheckbox" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                    <label for="removeGlassesCheckbox" class="ml-3 block text-sm font-medium text-gray-800">移除照片中的眼鏡</label>
+                </div>
+            </div>
+
+            <div class="flex flex-col space-y-1 pt-4">
+                <div id="usageContainer" class="text-center text-sm text-gray-600">
+                    10分鐘內可生成次數: <span id="usageCount">0</span> / <span id="usageLimit">5</span>
+                </div>
+                <p id="rateLimitTimer" class="text-center text-xs text-gray-500 h-4"></p>
+                <button id="generateButton" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-4 px-4 rounded-xl transition-colors flex items-center justify-center relative">
+                    <span>生成證件照</span>
+                    <span id="failureCountDisplay" class="absolute right-3 top-1/2 -translate-y-1/2 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center hidden" aria-label="生成失敗次數"></span>
+                </button>
+                <button id="clearButton" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-xl transition-colors">清空重設</button>
+            </div>
+        </div>
+
+        <!-- 輸出區塊 -->
+        <div class="flex-1 flex flex-col items-center justify-center bg-gray-50 border border-gray-200 rounded-xl p-4 relative space-y-4">
+            <div id="outputContainer" class="w-full h-full flex flex-col gap-4">
+                <!-- 生成結果 -->
+                <div class="view-card border border-gray-200 rounded-lg p-3 flex flex-col items-center text-center bg-white shadow-sm w-full">
+                    <h2 class="text-md font-semibold text-gray-800 mb-2">生成結果</h2>
+                    <div class="w-full max-w-sm aspect-[7/9] bg-gray-100 rounded-md flex items-center justify-center relative">
+                        <img id="generatedImage" class="w-full h-full object-contain rounded-md hidden cursor-zoom-in" alt="生成的證件照">
+                        <div id="placeholder" class="text-gray-400 p-2">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                             <p class="mt-2 text-sm">此處將顯示您生成的照片</p>
+                        </div>
+                        <div id="loading" role="status" class="hidden absolute inset-0 bg-white/80 flex-col gap-2 flex items-center justify-center rounded-md text-center p-2">
+                            <div class="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+                            <p id="statusText" class="text-sm text-gray-700 font-medium" aria-live="polite">生成中...</p>
+                            <p id="timer" class="text-xs text-gray-500"></p>
+                            <button id="terminate" class="mt-2 bg-red-500 hover:bg-red-600 text-white font-medium py-1 px-3 rounded-lg transition-colors text-xs pointer-events-auto hidden">終止</button>
+                        </div>
+                    </div>
+                    <div class="mt-3 w-full max-w-sm grid grid-cols-2 gap-2">
+                        <button id="downloadBtn" class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm">下載</button>
+                        <button id="regenerateBtn" class="hidden w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm">重新生成</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Lightbox Modal -->
+    <div id="lightbox" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50 p-4 transition-opacity duration-300">
+        <div class="relative bg-white p-4 rounded-lg max-w-4xl max-h-[90vh] shadow-lg">
+            <img id="lightboxImage" src="" alt="放大檢視" class="max-w-full max-h-[85vh] object-contain">
+            <button id="closeLightbox" class="absolute top-3 right-3 bg-gray-800 bg-opacity-50 hover:bg-opacity-75 text-white rounded-full p-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-gray-500" aria-label="關閉">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script type="module" src="index.js"></script>
+</body>
+</html>

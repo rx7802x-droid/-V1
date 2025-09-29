@@ -1,0 +1,7 @@
+{
+  "name": " 證件照生成器V1",
+  "description": "上傳或拍攝您的人像，生成專業的證件照。",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
